@@ -1,0 +1,36 @@
+[project]
+name = "nufft-biot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "desc-opt>=0.16.0",    
+    "finufft>=2.4.1",
+    "ipykernel>=6.0.0",
+    "jax>=0.4.24",         
+    "jax-finufft>=0.1.0",
+    "jaxlib>=0.4.24",      
+    "matplotlib>=3.7.0",   
+    "numpy>=1.24.0",      
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.14.10",
+]
+
+[project.scripts]
+pytest = "pytest:console_main"
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "ignore:mlir.custom_call is deprecated:DeprecationWarning",
+]
+markers = [
+    "slow: long-running, high-resolution physics validation tests"
+]
