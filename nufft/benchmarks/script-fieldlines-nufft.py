@@ -293,7 +293,6 @@ def parse_args():
         ),
     )
     parser.add_argument("--marker-size", type=float, default=0.5)
-    parser.add_argument("--coil-count", type=int, default=2)
     parser.add_argument("--skip-poincare", action="store_true")
     parser.add_argument(
         "--include-inside-plasma",
@@ -319,7 +318,6 @@ def parse_args():
     parser.add_argument("--quiver-offset-min", type=float, default=0.005)
     parser.add_argument("--quiver-offset-max", type=float, default=0.07)
     parser.add_argument("--quiver-offset-count", type=int, default=8)
-    parser.add_argument("--quiver-coil-clearance", type=float, default=0.01)
     parser.add_argument(
         "--quiver-R",
         nargs=2,
@@ -435,8 +433,6 @@ def worker_cli(args):
         str(args.phi_planes),
         "--marker-size",
         str(args.marker_size),
-        "--coil-count",
-        str(args.coil_count),
         "--inside-check-phi",
         str(args.inside_check_phi),
         "--inside-check-theta",
@@ -451,8 +447,6 @@ def worker_cli(args):
         str(args.quiver_offset_max),
         "--quiver-offset-count",
         str(args.quiver_offset_count),
-        "--quiver-coil-clearance",
-        str(args.quiver_coil_clearance),
     ]
 
     # Plot bounds default to None (auto from the LCFS in the worker). Only pass
@@ -1423,48 +1417,6 @@ def plane_angles(eq, nplanes):
     return np.linspace(0.0, 2.0 * np.pi / eq.NFP, int(nplanes), endpoint=False)
 
 
-def coils_for_overlay(field, coil_count):
-    if coil_count <= 0 or not hasattr(field, "coils"):
-        return []
-    coils = list(field.coils)
-    return coils[-coil_count:]
-
-
-def overlay_coils(rt, eq, field, axes, phi_values, coil_count, n_curve=400):
-    """Mark where each overlaid coil pierces each toroidal plane.
-
-    For every coil we sample its curve densely and scatter the points whose
-    toroidal angle falls within half a plane-spacing of each section angle.
-    Defensive: any coil that cannot be evaluated is skipped silently.
-    """
-    coils = coils_for_overlay(field, coil_count)
-    if not coils:
-        return
-    phi_values = np.atleast_1d(np.asarray(phi_values, dtype=float))
-    if len(phi_values) > 1:
-        tol = 0.5 * float(np.min(np.diff(np.sort(phi_values))))
-    else:
-        tol = np.pi / max(int(eq.NFP), 1) / 6.0
-    grid = rt.LinearGrid(zeta=n_curve)
-    for coil in coils:
-        try:
-            cdata = coil.compute(["R", "phi", "Z"], grid=grid)
-        except Exception:
-            continue
-        cR = np.asarray(cdata["R"], dtype=float)
-        cPhi = np.mod(np.asarray(cdata["phi"], dtype=float), 2.0 * np.pi)
-        cZ = np.asarray(cdata["Z"], dtype=float)
-        for i, phi0 in enumerate(phi_values):
-            if i >= len(axes):
-                break
-            dphi = np.abs((cPhi - phi0 + np.pi) % (2.0 * np.pi) - np.pi)
-            sel = dphi < tol
-            if np.any(sel):
-                axes[i].scatter(
-                    cR[sel], cZ[sel], marker="x", s=20, color="k", linewidths=0.8
-                )
-
-
 def overlay_lcfs(rt, eq, axes, phi_values, theta=128):
     for i, phi in enumerate(np.atleast_1d(phi_values)):
         if i >= len(axes):
@@ -1511,7 +1463,6 @@ def plot_poincare(rt, eq, field, field_lines, args, out_path):
         ax.set_aspect("equal")
         ax.set_title(f"phi = {planes[plane_idx]:.3f}")
 
-    overlay_coils(rt, eq, field, axes, planes, args.coil_count)
     fig.savefig(out_path, dpi=500)
     rt.plt.close(fig)
     print(f"Saved Poincare plot to {out_path}")
@@ -1558,7 +1509,6 @@ def plot_poincare_data(rt, eq, field, data, args, out_path):
         ax.set_visible(False)
 
     overlay_lcfs(rt, eq, axes, planes, theta=args.inside_check_theta)
-    overlay_coils(rt, eq, field, axes, planes, args.coil_count)
     fig.savefig(out_path, dpi=500)
     rt.plt.close(fig)
     print(f"Saved Poincare plot to {out_path}")
@@ -1611,28 +1561,6 @@ def run_poincare_plot(rt, eq, field, plasma_modes, box, shift, seeds_world, args
     )
     plot_poincare_data(rt, eq, field, data, args, out_path)
     return data, seeds_world
-
-
-def coil_clearance_mask(rt, field, eq, coords_rpz, phi, coil_count, clearance):
-    mask = np.ones(coords_rpz.shape[0], dtype=bool)
-    if clearance <= 0:
-        return mask
-
-    for coil in coils_for_overlay(field, coil_count):
-        try:
-            cdata = coil.compute(
-                "x",
-                grid=rt.LinearGrid(zeta=np.array([phi]), NFP=1),
-                basis="rpz",
-            )["x"]
-        except Exception:
-            continue
-        if len(cdata) == 0:
-            continue
-        cpt = np.asarray(cdata[0], dtype=float)
-        dist = np.sqrt((coords_rpz[:, 0] - cpt[0]) ** 2 + (coords_rpz[:, 2] - cpt[2]) ** 2)
-        mask &= dist > clearance
-    return mask
 
 
 def evaluate_quiver_field(rt, field, plasma_modes, coords_world, box, shift, args):
@@ -1691,17 +1619,6 @@ def plot_quiver(rt, eq, field, plasma_modes, box, shift, args, out_path):
         normal = np.asarray(data["n_rho"], dtype=float)
         coords_world = np.concatenate([surface + offset * normal for offset in offsets], axis=0)
         coords_rpz = xyz_to_rpz(coords_world)
-        mask = coil_clearance_mask(
-            rt,
-            field,
-            eq,
-            coords_rpz,
-            phi,
-            args.coil_count,
-            args.quiver_coil_clearance,
-        )
-        coords_world = coords_world[mask]
-        coords_rpz = coords_rpz[mask]
 
         B_xyz = evaluate_quiver_field(
             rt,
@@ -1725,7 +1642,6 @@ def plot_quiver(rt, eq, field, plasma_modes, box, shift, args, out_path):
         ax.set_aspect("equal")
         ax.set_title(f"phi = {phi:.3f}")
 
-    overlay_coils(rt, eq, field, axes, phi_values, args.coil_count)
     fig.savefig(out_path, dpi=500)
     rt.plt.close(fig)
     print(f"Saved quiver plot to {out_path}")
