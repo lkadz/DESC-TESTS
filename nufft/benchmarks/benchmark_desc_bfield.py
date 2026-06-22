@@ -171,6 +171,37 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--lcfs-zoom",
+        action="store_true",
+        help=(
+            "Extra diagnostic plot: BR, BZ, Bphi on a dense band of near-edge flux "
+            "surfaces vs poloidal angle, DESC vs NUFFT side by side, to reveal any "
+            "Gibbs ringing in the spectral field as rho -> 1 (the LCFS current "
+            "discontinuity). Uses the plotted box N and source resolution."
+        ),
+    )
+    parser.add_argument(
+        "--lcfs-zoom-rho-min",
+        type=float,
+        default=0.9,
+        help="Innermost flux surface of the LCFS zoom band (default 0.9).",
+    )
+    parser.add_argument(
+        "--lcfs-zoom-n-rho",
+        type=int,
+        default=12,
+        help="Number of flux surfaces from --lcfs-zoom-rho-min to the LCFS.",
+    )
+    parser.add_argument(
+        "--lcfs-zoom-n-theta",
+        type=int,
+        default=256,
+        help=(
+            "Poloidal sampling of the LCFS zoom (high so Gibbs oscillations are "
+            "resolved; the main target grid is too coarse)."
+        ),
+    )
+    parser.add_argument(
         "--source-scan",
         action="store_true",
         help=(
@@ -1002,6 +1033,172 @@ def plot_component_sections(
         plt.close(fig)
 
 
+def plot_lcfs_zoom(
+    jax,
+    jnp,
+    modules,
+    eq,
+    LinearGrid,
+    source,
+    box_side: float,
+    center: np.ndarray,
+    n: int,
+    external_field,
+    args: argparse.Namespace,
+    plot_data: dict[str, np.ndarray],
+    outdir: Path,
+) -> None:
+    """Zoom on the LCFS to look for Gibbs ringing in the NUFFT field.
+
+    For each plotted cross section this evaluates BR, BZ and Bphi on a dense
+    band of flux surfaces just inside the boundary (rho in
+    [``--lcfs-zoom-rho-min``, 1.0]) and plots them against the poloidal angle,
+    DESC on the left and the NUFFT volume(+coils) model on the right. The
+    spectral Biot-Savart field rings near the LCFS current discontinuity, so any
+    Gibbs oscillation shows up as a wiggle in the right column that the smooth
+    DESC equilibrium field (left column) does not have.
+
+    The B evaluation grid here is independent of the convergence-scan target
+    grid: it is concentrated near the edge and finely sampled in theta so the
+    oscillations are actually resolved.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import Normalize
+
+    nodes = plot_data["target_nodes"]
+    zetas = select_plot_zetas(nodes, args.num_cross_sections)
+    rho_min = float(args.lcfs_zoom_rho_min)
+    rho_vals = np.linspace(rho_min, 1.0, args.lcfs_zoom_n_rho)
+
+    # Dense near-edge evaluation grid at the plotted cross sections.
+    edge_grid = LinearGrid(
+        rho=rho_vals,
+        theta=args.lcfs_zoom_n_theta,
+        zeta=np.asarray(zetas, dtype=float),
+        NFP=eq.NFP,
+        sym=False,
+        axis=False,
+    )
+    edge_data = eq.compute(["X", "Y", "Z", "B"], grid=edge_grid, basis="xyz")
+    edge_xyz = np.column_stack(
+        [
+            np.asarray(edge_data["X"]),
+            np.asarray(edge_data["Y"]),
+            np.asarray(edge_data["Z"]),
+        ]
+    )
+    B_desc = np.asarray(edge_data["B"])
+    edge_nodes = np.asarray(edge_grid.nodes)
+
+    # NUFFT plasma field on the same targets. B_hat is not retained from the
+    # scan loop, so recompute it once at the plotted box/source resolution.
+    X, Y, Z, Jx, Jy, Jz, w = source
+    cj = jnp.asarray(center)
+    box = modules["BoxParams"](box_side, box_side, box_side, n, n, n)
+    Bx_hat, By_hat, Bz_hat = modules["compute_B_hat"](
+        X - cj[0], Y - cj[1], Z - cj[2], Jx, Jy, Jz, w, box, eps=args.eps,
+        spectral_filter=args.spectral_filter, filter_order=args.filter_order,
+    )
+    pos = jnp.asarray(edge_xyz) - cj
+    Bx, By, Bz = modules["eval_B"](Bx_hat, By_hat, Bz_hat, pos, box, eps=args.eps)
+    B_nufft = np.asarray(jnp.stack([Bx, By, Bz], axis=1))
+    if external_field is not None:
+        B_ext = np.asarray(
+            external_field.compute_magnetic_field(
+                jnp.asarray(edge_xyz), basis="xyz", chunk_size=args.coil_chunk_size
+            )
+        )
+        B_nufft = B_nufft + B_ext
+
+    model_label = str(plot_data.get("model_label", "NUFFT"))
+    configuration_label = str(plot_data.get("configuration_label", "DESC"))
+
+    desc_BR, desc_Bphi, desc_BZ = cylindrical_components(edge_xyz, B_desc)
+    nufft_BR, nufft_Bphi, nufft_BZ = cylindrical_components(edge_xyz, B_nufft)
+    components = [
+        ("$B_R$ [T]", desc_BR, nufft_BR),
+        ("$B_Z$ [T]", desc_BZ, nufft_BZ),
+        (r"$B_\phi$ [T]", desc_Bphi, nufft_Bphi),
+    ]
+
+    norm = Normalize(vmin=rho_min, vmax=1.0)
+    cmap = plt.get_cmap("viridis")
+
+    def surface_curve(mask, vals):
+        """theta-sorted, loop-closed (theta, value) for one flux surface."""
+        theta = edge_nodes[mask, 1]
+        order = np.argsort(theta)
+        th = theta[order]
+        v = vals[mask][order]
+        return np.r_[th, th[0] + 2.0 * np.pi], np.r_[v, v[0]]
+
+    for section_index, zeta in enumerate(zetas):
+        zmask = np.isclose(edge_nodes[:, 2], zeta, rtol=0.0, atol=1e-9)
+        fig, axes = plt.subplots(3, 2, figsize=(11.0, 10.5), sharex=True)
+        for row, (label, desc_vals, nufft_vals) in enumerate(components):
+            row_lo, row_hi = np.inf, -np.inf
+            for col, (title, vals) in enumerate(
+                [("DESC", desc_vals), (model_label, nufft_vals)]
+            ):
+                ax = axes[row, col]
+                for rho in rho_vals:
+                    rmask = zmask & np.isclose(
+                        edge_nodes[:, 0], rho, rtol=0.0, atol=1e-9
+                    )
+                    if not rmask.any():
+                        continue
+                    th, v = surface_curve(rmask, vals)
+                    ax.plot(th, v, color=cmap(norm(rho)), lw=1.0)
+                    row_lo = min(row_lo, float(v.min()))
+                    row_hi = max(row_hi, float(v.max()))
+                if row == 0:
+                    ax.set_title(title)
+                if col == 0:
+                    ax.set_ylabel(label)
+                ax.grid(True, alpha=0.2)
+            pad = 0.05 * (row_hi - row_lo if row_hi > row_lo else 1.0)
+            for col in range(2):
+                axes[row, col].set_ylim(row_lo - pad, row_hi + pad)
+        for ax in axes[-1, :]:
+            ax.set_xlabel(r"poloidal angle $\theta$ [rad]")
+
+        sm = ScalarMappable(norm=norm, cmap=cmap)
+        sm.set_array([])
+        fig.colorbar(
+            sm, ax=axes.ravel().tolist(), shrink=0.82,
+            label=r"flux surface $\rho$ (outer = closer to LCFS)",
+        )
+        fig.suptitle(
+            f"{configuration_label} near-LCFS B components, "
+            f"zeta={zeta:.6f} rad, N={n}\n"
+            rf"$\rho \in [{rho_min:g}, 1.0]$ — Gibbs ringing shows as "
+            r"$\theta$ oscillation in the NUFFT column near $\rho=1$"
+        )
+        fig.savefig(outdir / f"lcfs_zoom_zeta{section_index:02d}_N{n}.png", dpi=220)
+        plt.close(fig)
+
+    # Quantify the edge ringing on the LCFS (rho=1) for each cross section.
+    lcfs_mask_all = np.isclose(edge_nodes[:, 0], 1.0, rtol=0.0, atol=1e-9)
+    for section_index, zeta in enumerate(zetas):
+        mask = lcfs_mask_all & np.isclose(edge_nodes[:, 2], zeta, rtol=0.0, atol=1e-9)
+        if not mask.any():
+            continue
+        resid = np.linalg.norm(B_nufft[mask] - B_desc[mask], axis=1)
+        ref = np.sqrt(np.mean(np.sum(B_desc[mask] ** 2, axis=1)))
+        rel = float(resid.max() / ref) if ref > 0 else float("nan")
+        print(
+            f"  LCFS zoom zeta={zeta:.4f}: max |B_NUFFT - B_DESC| on rho=1 "
+            f"= {resid.max():.4e} T ({rel:.3%} of |B|)"
+        )
+
+    del box, Bx_hat, By_hat, Bz_hat, Bx, By, Bz
+    gc.collect()
+
+
 def write_run_metadata(
     path: Path,
     args: argparse.Namespace,
@@ -1157,6 +1354,15 @@ def run_source_scan(
             args.outdir,
             args.num_cross_sections,
         )
+        if args.lcfs_zoom:
+            try:
+                plot_lcfs_zoom(
+                    jax, jnp, modules, eq, modules["LinearGrid"],
+                    last_source, last_box_side, last_center, n,
+                    external_field, args, plot_data, args.outdir,
+                )
+            except Exception as err:
+                print(f"Skipping LCFS zoom plot: {err!r}")
 
 
 def main() -> None:
@@ -1351,6 +1557,15 @@ def main() -> None:
             args.outdir,
             args.num_cross_sections,
         )
+        if args.lcfs_zoom:
+            try:
+                plot_lcfs_zoom(
+                    jax, jnp, modules, eq, LinearGrid,
+                    source, box_side, center, int(plot_data["N"]),
+                    external_field, args, plot_data, args.outdir,
+                )
+            except Exception as err:
+                print(f"Skipping LCFS zoom plot: {err!r}")
     elif args.plot_n is not None:
         print(f"No plot data saved because requested --plot-n {args.plot_n} did not finish.")
 

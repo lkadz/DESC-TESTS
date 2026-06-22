@@ -94,6 +94,32 @@ def parse_args() -> argparse.Namespace:
         help="Order p of the exponential filter exp(-alpha (|k|/k_max)**p).",
     )
     parser.add_argument(
+        "--lcfs-zoom",
+        action="store_true",
+        help=(
+            "Add a near-LCFS zoom plot (BR, BZ, Bphi vs poloidal angle on a band "
+            "of edge flux surfaces, DESC vs NUFFT) to look for Gibbs ringing."
+        ),
+    )
+    parser.add_argument(
+        "--lcfs-zoom-rho-min",
+        type=float,
+        default=0.9,
+        help="Innermost flux surface of the LCFS zoom band (default 0.9).",
+    )
+    parser.add_argument(
+        "--lcfs-zoom-n-rho",
+        type=int,
+        default=12,
+        help="Number of flux surfaces from --lcfs-zoom-rho-min to the LCFS.",
+    )
+    parser.add_argument(
+        "--lcfs-zoom-n-theta",
+        type=int,
+        default=256,
+        help="Poloidal sampling of the LCFS zoom (high to resolve oscillations).",
+    )
+    parser.add_argument(
         "--source-scan",
         action="store_true",
         help=(
@@ -190,6 +216,17 @@ def _filter_lines(args: argparse.Namespace) -> str:
     )
 
 
+def _lcfs_zoom_lines(args: argparse.Namespace) -> str:
+    if not args.lcfs_zoom:
+        return ""
+    return (
+        f"  --lcfs-zoom \\\n"
+        f"  --lcfs-zoom-rho-min {args.lcfs_zoom_rho_min} \\\n"
+        f"  --lcfs-zoom-n-rho {args.lcfs_zoom_n_rho} \\\n"
+        f"  --lcfs-zoom-n-theta {args.lcfs_zoom_n_theta} \\\n"
+    )
+
+
 def result_exists(n: int, base_outdir: Path, args: argparse.Namespace) -> bool:
     outdir = base_outdir / f"N{n}"
     metrics = outdir / "metrics.csv"
@@ -263,7 +300,7 @@ python benchmarks/benchmark_desc_bfield.py \\
   --n-theta {args.n_theta} \\
   --n-zeta {args.n_zeta} \\
   --target-rho-max {args.target_rho_max} \\
-{_taper_lines(args)}{_filter_lines(args)}\
+{_taper_lines(args)}{_filter_lines(args)}{_lcfs_zoom_lines(args)}\
   --jax-platform {args.jax_platform}
 """
 
@@ -303,7 +340,7 @@ python benchmarks/benchmark_desc_bfield.py \\
   --n-theta {args.n_theta} \\
   --n-zeta {args.n_zeta} \\
   --target-rho-max {args.target_rho_max} \\
-{_taper_lines(args)}{_filter_lines(args)}\
+{_taper_lines(args)}{_filter_lines(args)}{_lcfs_zoom_lines(args)}\
   --jax-platform {args.jax_platform}
 """
 
@@ -339,7 +376,7 @@ python benchmarks/benchmark_desc_bfield.py \\
   --joint-scan \\
   --joint-grids {joint_grids} \\
   --target-rho-max {args.target_rho_max} \\
-{_taper_lines(args)}{_filter_lines(args)}\
+{_taper_lines(args)}{_filter_lines(args)}{_lcfs_zoom_lines(args)}\
   --keep-going \\
   --jax-platform {args.jax_platform}
 """
