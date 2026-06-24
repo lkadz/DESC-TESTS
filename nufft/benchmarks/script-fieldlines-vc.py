@@ -136,8 +136,19 @@ def parse_args():
     parser.add_argument("--slurm-mem", default="64G", help="Slurm memory request.")
     parser.add_argument("--slurm-cores", type=int, default=8, help="Slurm CPU-core request.")
     parser.add_argument("--slurm-gres", default="gpu:1", help="Slurm generic resource request. Use '' to omit.")
-    parser.add_argument("--slurm-partition", default="", help="Optional Slurm partition.")
-    parser.add_argument("--slurm-constraint", default="nomig", help="Slurm node constraint. Use '' to omit.")
+    parser.add_argument(
+        "--cluster",
+        default=None,
+        choices=("della", "della40", "adroit", "stellar"),
+        help=(
+            "Convenience preset for Slurm partition + constraint: "
+            "della -> ('gpu', 'nomig'); della40 -> ('gpu', 'nomig&gpu40'); "
+            "adroit -> ('gpu', 'gpu80'); stellar -> ('gpu', ''). "
+            "Explicit --slurm-partition/--slurm-constraint override the preset."
+        ),
+    )
+    parser.add_argument("--slurm-partition", default=None, help="Slurm partition. Defaults per --cluster (else empty).")
+    parser.add_argument("--slurm-constraint", default=None, help="Slurm node constraint. Defaults per --cluster (else empty).")
     parser.add_argument("--conda-env", default="desc-env", help="Conda environment activated inside the Slurm job.")
     parser.add_argument(
         "--stage",
@@ -418,6 +429,32 @@ def apply_config(args):
         f"Config {args.config!r}: name={args.name}, "
         f"eq_file={args.eq_file}, coil_file={args.coil_file}"
     )
+
+
+CLUSTER_PRESETS = {
+    # Della's default partition is 'cpu'; GPUs live in 'gpu'. 'nomig' excludes
+    # MIG slices (1g.10gb, 3g.40gb), which DESC cannot use. della40 pins the
+    # full 40GB A100 (shorter queue); gpu40 alone also matches the 3g.40gb MIG
+    # slice, so it must be ANDed with nomig.
+    "della": {"partition": "gpu", "constraint": "nomig"},
+    "della40": {"partition": "gpu", "constraint": "nomig&gpu40"},
+    "adroit": {"partition": "gpu", "constraint": "gpu80"},
+    "stellar": {"partition": "gpu", "constraint": ""},
+}
+
+
+def apply_cluster(args):
+    """Fill Slurm partition/constraint from --cluster unless set explicitly.
+
+    della  -> full non-MIG A100 via the 'nomig' feature in the default partition.
+    adroit -> full A100 80GB node (feature 'gpu80') in the 'gpu' partition,
+              avoiding the MIG '3g.20gb' slices on adroit-h11g2.
+    """
+    preset = CLUSTER_PRESETS.get(args.cluster, {"partition": "", "constraint": ""})
+    if args.slurm_partition is None:
+        args.slurm_partition = preset["partition"]
+    if args.slurm_constraint is None:
+        args.slurm_constraint = preset["constraint"]
 
 
 def slurm_job_name(args):
@@ -1163,6 +1200,7 @@ def resolve_plot_bounds(rt, eq, args):
 def main():
     args = parse_args()
     apply_config(args)
+    apply_cluster(args)
     if not args.run and not args.local:
         submit_slurm_job(args)
         return

@@ -59,6 +59,52 @@ def compute_B_hat(
     return Bx_hat / box.V, By_hat / box.V, Bz_hat / box.V
 
 
+def compute_J_hat(
+    X, Y, Z, Jx, Jy, Jz, w, box, eps=1e-12, divergence_clean=False
+):
+    """Band-limited Fourier coefficients of the current density on the box.
+
+    This is the current-density analogue of :func:`compute_B_hat`: a type-1
+    NUFFT of the (weighted) source current onto the cubic Fourier grid. The
+    output uses the same ``hat / V`` normalization as :func:`compute_B_hat`, so
+    the band-limited current density can be reconstructed at arbitrary targets
+    with :func:`eval_B` (a type-2 NUFFT).
+
+    With ``divergence_clean=False`` (default) this returns the *raw* truncated
+    Fourier series of J. Because the DESC volume current jumps to zero at the
+    LCFS, that truncated series rings near the boundary -- the Gibbs phenomenon
+    that is the origin of the spectral Biot-Savart field ringing. Passing
+    ``divergence_clean=True`` applies the same Helmholtz projection used inside
+    :func:`compute_B_hat` (the field is driven by that divergence-free part).
+    """
+    Nx, Ny, Nz = box.Nx, box.Ny, box.Nz
+    shape = (Nx, Ny, Nz)
+
+    tx = 2.0 * jnp.pi * X / box.Lx
+    ty = 2.0 * jnp.pi * Y / box.Ly
+    tz = 2.0 * jnp.pi * Z / box.Lz
+
+    c_x = (Jx * w).astype(jnp.complex128)
+    c_y = (Jy * w).astype(jnp.complex128)
+    c_z = (Jz * w).astype(jnp.complex128)
+
+    Jx_hat = nufft1(shape, c_x, tx, ty, tz, eps=eps, iflag=-1)
+    Jy_hat = nufft1(shape, c_y, tx, ty, tz, eps=eps, iflag=-1)
+    Jz_hat = nufft1(shape, c_z, tx, ty, tz, eps=eps, iflag=-1)
+
+    if divergence_clean:
+        KX, KY, KZ = box.KX, box.KY, box.KZ
+        K2 = KX**2 + KY**2 + KZ**2
+        mask = K2 > 0.0
+        K2 = jnp.where(mask, K2, 1.0)
+        k_dot_J = KX * Jx_hat + KY * Jy_hat + KZ * Jz_hat
+        Jx_hat = jnp.where(mask, Jx_hat - KX * k_dot_J / K2, 0.0)
+        Jy_hat = jnp.where(mask, Jy_hat - KY * k_dot_J / K2, 0.0)
+        Jz_hat = jnp.where(mask, Jz_hat - KZ * k_dot_J / K2, 0.0)
+
+    return Jx_hat / box.V, Jy_hat / box.V, Jz_hat / box.V
+
+
 def eval_B(
     Bx_hat,
     By_hat,

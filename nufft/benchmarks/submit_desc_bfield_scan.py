@@ -12,6 +12,16 @@ from bench_config import available_configs, load_config
 
 JOB_SCRIPT = Path("job.slurm_desc_bfield")
 
+# Princeton cluster presets for landing on a full, non-MIG GPU (this DESC fork
+# cannot use MIG slices). Explicit --partition/--constraint override the preset.
+# An empty constraint means "no #SBATCH --constraint line".
+CLUSTER_PRESETS = {
+    "della": {"partition": "gpu", "constraint": "nomig"},          # full A100 (40 or 80GB)
+    "della40": {"partition": "gpu", "constraint": "nomig&gpu40"},   # full 40GB A100
+    "adroit": {"partition": "gpu", "constraint": "gpu80"},          # full A100 80GB (avoids MIG node)
+    "stellar": {"partition": "gpu", "constraint": ""},              # full A100, no MIG, no constraint
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -102,6 +112,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--lcfs-zoom-current",
+        action="store_true",
+        help=(
+            "Add a near-LCFS zoom plot of the SOURCE current density (JR, JZ, "
+            "Jphi), true DESC J vs the band-limited J from the NUFFT box "
+            "spectrum, to see the Gibbs ringing at the LCFS current jump."
+        ),
+    )
+    parser.add_argument(
         "--lcfs-zoom-rho-min",
         type=float,
         default=0.9,
@@ -165,9 +184,33 @@ def parse_args() -> argparse.Namespace:
         help="Slurm wall-clock limit (HH:MM:SS). Default: 06:00:00.",
     )
     parser.add_argument(
+        "--cluster",
+        choices=sorted(CLUSTER_PRESETS),
+        default=None,
+        help=(
+            "Princeton cluster preset for the GPU partition + node-feature "
+            "constraint, so the job lands on a full (non-MIG) GPU. "
+            "della: gpu/nomig; della40: gpu/nomig&gpu40; adroit: gpu/gpu80; "
+            "stellar: gpu/(none). Explicit --partition/--constraint override it. "
+            "Without --cluster the constraint defaults to 'nomig' (della), which "
+            "fails on adroit with 'Invalid feature specification' -- use "
+            "--cluster adroit there."
+        ),
+    )
+    parser.add_argument(
         "--partition",
         default=None,
-        help="Slurm partition to submit to (e.g. 'short'). Omit to use cluster default.",
+        help="Slurm partition to submit to. Overrides the --cluster preset.",
+    )
+    parser.add_argument(
+        "--constraint",
+        default=None,
+        help=(
+            "Slurm node feature constraint for GPU jobs (#SBATCH --constraint). "
+            "Overrides the --cluster preset. Pass an empty string ('') to omit "
+            "the constraint line entirely. Defaults to 'nomig' when neither "
+            "--cluster nor --constraint is given."
+        ),
     )
     parser.add_argument(
         "--jax-platform",
@@ -178,7 +221,16 @@ def parse_args() -> argparse.Namespace:
             "provide CUDA lowering in the active environment."
         ),
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Resolve the cluster preset, letting explicit flags win. The empty-string
+    # constraint is preserved (it means "omit the constraint line").
+    preset = CLUSTER_PRESETS.get(args.cluster, {})
+    if args.partition is None:
+        args.partition = preset.get("partition")
+    if args.constraint is None:
+        args.constraint = preset.get("constraint", "nomig")
+    return args
 
 
 def get_queued_job_names(user: str | None = None) -> set[str]:
@@ -217,10 +269,14 @@ def _filter_lines(args: argparse.Namespace) -> str:
 
 
 def _lcfs_zoom_lines(args: argparse.Namespace) -> str:
-    if not args.lcfs_zoom:
+    if not (args.lcfs_zoom or args.lcfs_zoom_current):
         return ""
-    return (
-        f"  --lcfs-zoom \\\n"
+    lines = ""
+    if args.lcfs_zoom:
+        lines += "  --lcfs-zoom \\\n"
+    if args.lcfs_zoom_current:
+        lines += "  --lcfs-zoom-current \\\n"
+    return lines + (
         f"  --lcfs-zoom-rho-min {args.lcfs_zoom_rho_min} \\\n"
         f"  --lcfs-zoom-n-rho {args.lcfs_zoom_n_rho} \\\n"
         f"  --lcfs-zoom-n-theta {args.lcfs_zoom_n_theta} \\\n"
@@ -250,7 +306,9 @@ def _slurm_header(job_name: str, logfile: Path, args: argparse.Namespace) -> str
     partition_line = f"#SBATCH --partition={args.partition}\n" if args.partition else ""
     gpu_lines = ""
     if args.jax_platform in {"gpu", "cuda"}:
-        gpu_lines = "#SBATCH --gres=gpu:1\n#SBATCH --constraint=nomig\n"
+        gpu_lines = "#SBATCH --gres=gpu:1\n"
+        if args.constraint:
+            gpu_lines += f"#SBATCH --constraint={args.constraint}\n"
     return (
         f"#SBATCH --job-name={job_name}\n"
         f"#SBATCH --nodes=1\n"
