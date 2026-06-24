@@ -16,8 +16,10 @@ JOB_SCRIPT = Path("job.slurm_desc_bfield")
 # cannot use MIG slices). Explicit --partition/--constraint override the preset.
 # An empty constraint means "no #SBATCH --constraint line".
 CLUSTER_PRESETS = {
-    "della": {"partition": "gpu", "constraint": "nomig"},          # full A100 (40 or 80GB)
-    "della40": {"partition": "gpu", "constraint": "nomig&gpu40"},   # full 40GB A100
+    # Della auto-routes GPU jobs from --gres and forbids naming the 'gpu'
+    # partition, so leave it empty there; Adroit/Stellar require 'gpu'.
+    "della": {"partition": "", "constraint": "nomig"},             # full A100 (40 or 80GB)
+    "della40": {"partition": "", "constraint": "nomig&gpu40"},     # full 40GB A100
     "adroit": {"partition": "gpu", "constraint": "gpu80"},          # full A100 80GB (avoids MIG node)
     "stellar": {"partition": "gpu", "constraint": ""},              # full A100, no MIG, no constraint
 }

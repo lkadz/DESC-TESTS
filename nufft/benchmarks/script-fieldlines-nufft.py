@@ -148,8 +148,8 @@ def parse_args():
         choices=("della", "della40", "adroit", "stellar"),
         help=(
             "Convenience preset for Slurm partition + constraint:\n"
-            "  della   -> partition 'gpu', constraint 'nomig'        (full A100, 40 or 80GB)\n"
-            "  della40 -> partition 'gpu', constraint 'nomig&gpu40'  (full 40GB A100, shorter queue)\n"
+            "  della   -> partition '',    constraint 'nomig'        (full A100, 40 or 80GB)\n"
+            "  della40 -> partition '',    constraint 'nomig&gpu40'  (full 40GB A100, shorter queue)\n"
             "  adroit  -> partition 'gpu', constraint 'gpu80'        (full A100 80GB, non-MIG)\n"
             "  stellar -> partition 'gpu', no constraint              (full A100, no MIG)\n"
             "Explicit --slurm-partition/--slurm-constraint override the preset."
@@ -541,12 +541,14 @@ def apply_config(args):
 
 
 CLUSTER_PRESETS = {
-    # Della's default partition is 'cpu'; GPUs live in 'gpu'. 'nomig' excludes
-    # MIG slices (1g.10gb, 3g.40gb), which DESC cannot use. della40 pins the
-    # full 40GB A100 (shorter queue than the 80GB/H100 nodes); note gpu40 alone
-    # also matches the 3g.40gb MIG slice, so it must be ANDed with nomig.
-    "della": {"partition": "gpu", "constraint": "nomig"},
-    "della40": {"partition": "gpu", "constraint": "nomig&gpu40"},
+    # Della auto-routes GPU jobs from --gres and FORBIDS naming the 'gpu'
+    # partition (sbatch errors "partition of gpu ... not allowed"), so leave
+    # partition empty here. 'nomig' excludes MIG slices (1g.10gb, 3g.40gb),
+    # which DESC cannot use. della40 pins the full 40GB A100 (shorter queue than
+    # the 80GB/H100 nodes); gpu40 alone also matches the 3g.40gb MIG slice, so it
+    # must be ANDed with nomig. Adroit/Stellar do require partition 'gpu'.
+    "della": {"partition": "", "constraint": "nomig"},
+    "della40": {"partition": "", "constraint": "nomig&gpu40"},
     "adroit": {"partition": "gpu", "constraint": "gpu80"},
     "stellar": {"partition": "gpu", "constraint": ""},
 }

@@ -142,7 +142,7 @@ def parse_args():
         choices=("della", "della40", "adroit", "stellar"),
         help=(
             "Convenience preset for Slurm partition + constraint: "
-            "della -> ('gpu', 'nomig'); della40 -> ('gpu', 'nomig&gpu40'); "
+            "della -> ('', 'nomig'); della40 -> ('', 'nomig&gpu40'); "
             "adroit -> ('gpu', 'gpu80'); stellar -> ('gpu', ''). "
             "Explicit --slurm-partition/--slurm-constraint override the preset."
         ),
@@ -432,12 +432,14 @@ def apply_config(args):
 
 
 CLUSTER_PRESETS = {
-    # Della's default partition is 'cpu'; GPUs live in 'gpu'. 'nomig' excludes
-    # MIG slices (1g.10gb, 3g.40gb), which DESC cannot use. della40 pins the
-    # full 40GB A100 (shorter queue); gpu40 alone also matches the 3g.40gb MIG
-    # slice, so it must be ANDed with nomig.
-    "della": {"partition": "gpu", "constraint": "nomig"},
-    "della40": {"partition": "gpu", "constraint": "nomig&gpu40"},
+    # Della auto-routes GPU jobs from --gres and FORBIDS naming the 'gpu'
+    # partition (sbatch errors "partition of gpu ... not allowed"), so leave
+    # partition empty here. 'nomig' excludes MIG slices (1g.10gb, 3g.40gb),
+    # which DESC cannot use. della40 pins the full 40GB A100 (shorter queue);
+    # gpu40 alone also matches the 3g.40gb MIG slice, so it must be ANDed with
+    # nomig. Adroit/Stellar do require partition 'gpu'.
+    "della": {"partition": "", "constraint": "nomig"},
+    "della40": {"partition": "", "constraint": "nomig&gpu40"},
     "adroit": {"partition": "gpu", "constraint": "gpu80"},
     "stellar": {"partition": "gpu", "constraint": ""},
 }
