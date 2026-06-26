@@ -150,7 +150,7 @@ def parse_args():
             "Convenience preset for Slurm partition + constraint:\n"
             "  della     -> partition '',  constraint 'nomig'         (full A100, 40 or 80GB)\n"
             "  della40   -> partition '',  constraint 'nomig&gpu40'   (full 40GB A100, shorter queue)\n"
-            "  della_mig -> partition '',  constraint 'mig'           (MIG slice; DESC may OOM)\n"
+            "  della_mig -> partition 'mig'                           (MIG slice; DESC may OOM)\n"
             "  adroit    -> partition 'gpu', constraint 'gpu80'       (full A100 80GB, non-MIG)\n"
             "  stellar   -> partition 'gpu', no constraint            (full A100, no MIG)\n"
             "Explicit --slurm-partition/--slurm-constraint override the preset."
@@ -550,10 +550,11 @@ CLUSTER_PRESETS = {
     # must be ANDed with nomig. Adroit/Stellar do require partition 'gpu'.
     "della": {"partition": "", "constraint": "nomig"},
     "della40": {"partition": "", "constraint": "nomig&gpu40"},
-    # della_mig requests a MIG slice via the 'mig' feature (the complement of
-    # 'nomig'). DESC normally can't fit on a MIG slice, so this is for testing /
-    # short-queue experiments only and may OOM.
-    "della_mig": {"partition": "", "constraint": "mig"},
+    # della_mig requests a MIG slice via Della's dedicated 'mig' partition
+    # (there is no 'mig' node feature -- a constraint=mig errors with "Invalid
+    # feature specification"). DESC normally can't fit on a MIG slice, so this
+    # is for testing / short-queue experiments only and may OOM.
+    "della_mig": {"partition": "mig", "constraint": ""},
     "adroit": {"partition": "gpu", "constraint": "gpu80"},
     "stellar": {"partition": "gpu", "constraint": ""},
 }
