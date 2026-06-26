@@ -128,7 +128,7 @@ def parse_args():
     )
     parser.add_argument(
         "--slurm-mem",
-        default="64G",
+        default="16G",
         help="Slurm memory request.",
     )
     parser.add_argument(
@@ -145,13 +145,14 @@ def parse_args():
     parser.add_argument(
         "--cluster",
         default=None,
-        choices=("della", "della40", "adroit", "stellar"),
+        choices=("della", "della40", "della_mig", "adroit", "stellar"),
         help=(
             "Convenience preset for Slurm partition + constraint:\n"
-            "  della   -> partition '',      (full A100, 40 or 80GB)\n" #constraint 'nomig'
-            "  della40 -> partition '',    constraint 'nomig&gpu40'  (full 40GB A100, shorter queue)\n"
-            "  adroit  -> partition 'gpu', constraint 'gpu80'        (full A100 80GB, non-MIG)\n"
-            "  stellar -> partition 'gpu', no constraint              (full A100, no MIG)\n"
+            "  della     -> partition '',  constraint 'nomig'         (full A100, 40 or 80GB)\n"
+            "  della40   -> partition '',  constraint 'nomig&gpu40'   (full 40GB A100, shorter queue)\n"
+            "  della_mig -> partition '',  constraint 'mig'           (MIG slice; DESC may OOM)\n"
+            "  adroit    -> partition 'gpu', constraint 'gpu80'       (full A100 80GB, non-MIG)\n"
+            "  stellar   -> partition 'gpu', no constraint            (full A100, no MIG)\n"
             "Explicit --slurm-partition/--slurm-constraint override the preset."
         ),
     )
@@ -549,6 +550,10 @@ CLUSTER_PRESETS = {
     # must be ANDed with nomig. Adroit/Stellar do require partition 'gpu'.
     "della": {"partition": "", "constraint": "nomig"},
     "della40": {"partition": "", "constraint": "nomig&gpu40"},
+    # della_mig requests a MIG slice via the 'mig' feature (the complement of
+    # 'nomig'). DESC normally can't fit on a MIG slice, so this is for testing /
+    # short-queue experiments only and may OOM.
+    "della_mig": {"partition": "", "constraint": "mig"},
     "adroit": {"partition": "gpu", "constraint": "gpu80"},
     "stellar": {"partition": "gpu", "constraint": ""},
 }

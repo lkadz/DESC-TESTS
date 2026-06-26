@@ -36,19 +36,17 @@ TIME_OVERRIDE="${TIME:-}"
 
 CONFIGS=(
   "2bump_n0_0.07_n1_0.02_k_iota_-1.0"
-  "precise_QA"
 )
 
 # One row per job (per config). Columns:
 #   POL  OFFMIN  OFFMAX  OFFCOUNT  NTRANSIT  TOL  MAXSTEPS  WALLTIME  TAG
+# The four standard-weight (2h) cases. The heavier 3h sets (res_high, many_surf,
+# tol_tight) are intentionally left out of this 4-case scan.
 PARAM_SETS=(
   "1  0.005 0.04  8   100  1e-5   40000  02:00:00  res_low"     # cheap baseline, sparse
   "1  0.005 0.04  8   300  1e-6  120000  02:00:00  res_med"     # moderate density
-  "1  0.005 0.04  8   800  1e-6  320000  03:00:00  res_high"    # dense surfaces (heavy)
   "1  0.001 0.01  8   500  1e-6  200000  02:00:00  near_edge"   # very close to the LCFS
   "1  0.01  0.08  8   500  1e-6  200000  02:00:00  wide_span"   # probe further out
-  "1  0.002 0.05  15  500  1e-6  200000  03:00:00  many_surf"   # many nested surfaces (heavy)
-  "1  0.005 0.04  8   500  1e-7  300000  03:00:00  tol_tight"   # sharpest integration (heavy)
 )
 
 submit_one() {
