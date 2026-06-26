@@ -20,7 +20,4 @@ export JAX_ENABLE_X64=True
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export MPLBACKEND=Agg
 
-cd "$(dirname "$0")"
-mkdir -p logs
-
 python 02_coil_optimization.py
