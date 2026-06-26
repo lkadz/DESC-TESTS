@@ -148,7 +148,7 @@ def parse_args():
         choices=("della", "della40", "adroit", "stellar"),
         help=(
             "Convenience preset for Slurm partition + constraint:\n"
-            "  della   -> partition '',    constraint 'nomig'        (full A100, 40 or 80GB)\n"
+            "  della   -> partition '',      (full A100, 40 or 80GB)\n" #constraint 'nomig'
             "  della40 -> partition '',    constraint 'nomig&gpu40'  (full 40GB A100, shorter queue)\n"
             "  adroit  -> partition 'gpu', constraint 'gpu80'        (full A100 80GB, non-MIG)\n"
             "  stellar -> partition 'gpu', no constraint              (full A100, no MIG)\n"
