@@ -17,31 +17,23 @@ import numpy as np
 
 from desc.continuation import solve_continuation_automatic
 from desc.equilibrium import Equilibrium
-from desc.geometry import FourierRZToroidalSurface
+from desc.examples import get as get_example
 from desc.profiles import PowerSeriesProfile
 
 HERE = Path(__file__).resolve().parent
 
 # ---------------------------------------------------------------------------
-# Boundary: simple 2-field-period helical stellarator
-#   R(θ,ζ) = 3.0 + 0.5 cos θ + 0.10 cos(ζ_NFP) + 0.02 cos(θ - ζ_NFP)
-#   Z(θ,ζ) = 0.5 sin θ + 0.10 sin(ζ_NFP) + 0.02 sin(θ - ζ_NFP)
-# where ζ_NFP = NFP·ζ  (ζ = geometric toroidal angle, period 2π/NFP)
+# Use the precise_QA boundary (NFP=2, quasi-axisymmetric, ships with DESC).
+# Building a fresh equilibrium from it with custom profiles avoids having to
+# hand-tune Fourier modes to keep the initial Jacobian non-degenerate.
 # ---------------------------------------------------------------------------
-NFP = 2
-
-surface = FourierRZToroidalSurface(
-    R_lmn=np.array([3.0, 0.5, 0.10, 0.02]),
-    Z_lmn=np.array([0.5, 0.10, 0.02]),
-    modes_R=[[0, 0], [1, 0], [0, 1], [1, 1]],
-    modes_Z=[[1, 0], [0, 1], [1, 1]],
-    NFP=NFP,
-    sym=True,
-)
+example = get_example("precise_QA")
+surface = example.surface.copy()
 
 # p(s) = 1e4 (1 - s²)  Pa,   iota(s) = 0.4 + 0.1 s²
 pressure = PowerSeriesProfile(params=[1e4, -1e4], modes=[0, 2])
 iota = PowerSeriesProfile(params=[0.4, 0.1], modes=[0, 2])
+NFP = surface.NFP  # 2
 
 eq = Equilibrium(
     NFP=NFP,
