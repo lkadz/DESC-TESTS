@@ -4,8 +4,8 @@
 #SBATCH --ntasks=1
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
-#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
+#SBATCH --constraint=nomig
 #SBATCH --output=logs/02_coil_optimization-%j.out
 #SBATCH --error=logs/02_coil_optimization-%j.err
 
