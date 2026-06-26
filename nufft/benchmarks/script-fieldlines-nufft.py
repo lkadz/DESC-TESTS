@@ -572,6 +572,14 @@ def apply_cluster(args):
         args.slurm_partition = preset["partition"]
     if args.slurm_constraint is None:
         args.slurm_constraint = preset["constraint"]
+    # Della's 'mig' partition rejects any job with a core count != 1
+    # ("You specified a partition of mig with a core count not equal to 1").
+    if args.slurm_partition == "mig" and args.slurm_cores != 1:
+        print(
+            f"Note: partition 'mig' requires exactly 1 core; "
+            f"overriding --slurm-cores {args.slurm_cores} -> 1."
+        )
+        args.slurm_cores = 1
 
 
 def slurm_job_name(args):
