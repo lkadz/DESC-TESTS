@@ -6,8 +6,8 @@
 #SBATCH --time=00:59:00
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=nomig
-#SBATCH --output=logs/02_coil_optimization-%j.out
-#SBATCH --error=logs/02_coil_optimization-%j.err
+#SBATCH --output=logs/02_coil_optimization.out
+#SBATCH --error=logs/02_coil_optimization.err
 
 set -eo pipefail
 

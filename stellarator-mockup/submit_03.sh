@@ -6,8 +6,8 @@
 #SBATCH --time=00:59:00
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=nomig
-#SBATCH --output=logs/03_free_boundary-%j.out
-#SBATCH --error=logs/03_free_boundary-%j.err
+#SBATCH --output=logs/03_free_boundary.out
+#SBATCH --error=logs/03_free_boundary.err
 
 set -eo pipefail
 
