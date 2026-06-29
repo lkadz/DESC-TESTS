@@ -22,4 +22,4 @@ export MPLBACKEND=Agg
 
 python 01_fixed_boundary.py
 
-jobstats $SLURM_JOB_ID
+sleep 30 && jobstats $SLURM_JOB_ID
