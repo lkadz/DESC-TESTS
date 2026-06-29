@@ -60,8 +60,9 @@ objective = ObjectiveFunction(
     )
 )
 
-# Fix the current in the first coil so the solver can't trivially zero everything.
-constraints = (FixCoilCurrent(coilset, indices=[0]),)
+# Fix all coil currents — optimizer only adjusts coil shapes, not currents.
+# This avoids the trivial zero-current solution and works with any CoilSet tree structure.
+constraints = (FixCoilCurrent(coilset),)
 
 optimizer = Optimizer("lsq-exact")
 coilset_opt, result = optimizer.optimize(
