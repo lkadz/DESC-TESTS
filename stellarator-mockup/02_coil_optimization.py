@@ -73,6 +73,9 @@ coilset_opt, result = optimizer.optimize(
     copy=True,
 )
 
+# optimizer returns a list of optimized things when multiple things are passed
+coilset_opt = coilset_opt[0] if isinstance(coilset_opt, list) else coilset_opt
+
 out = HERE / "coilset.h5"
 coilset_opt.save(str(out))
 print(f"Saved → {out}")
