@@ -73,6 +73,7 @@ eq_warm, _ = optimizer.optimize(
     verbose=3,
     copy=True,
 )
+eq_warm = eq_warm[0] if isinstance(eq_warm, list) else eq_warm
 
 # ---------------------------------------------------------------------------
 # Step 2 — refine with BoundaryError (full virtual casing, finite-beta correct)
@@ -97,6 +98,7 @@ eq_free, _ = optimizer.optimize(
     verbose=3,
     copy=True,
 )
+eq_free = eq_free[0] if isinstance(eq_free, list) else eq_free
 
 out = HERE / "eq_free.h5"
 eq_free.save(str(out))
