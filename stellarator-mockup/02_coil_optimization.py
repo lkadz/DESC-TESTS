@@ -39,7 +39,7 @@ print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
 # Initialise modular coils (4 unique coils for the half-period with stell sym)
 # ---------------------------------------------------------------------------
 NUM_COILS = 6   # unique coils (stellarator symmetry fills the rest)
-R_OVER_A = 3.0  # coil-to-plasma aspect ratio (coils sit at ~3× the minor radius)
+R_OVER_A = 2.0  # coil-to-plasma aspect ratio (coils sit at ~2× the minor radius)
 
 coilset = initialize_modular_coils(eq, num_coils=NUM_COILS, r_over_a=R_OVER_A)
 coilset = coilset.to_FourierXYZ(N=12)
@@ -71,6 +71,9 @@ coilset_opt, result = optimizer.optimize(
     constraints=constraints,
     verbose=3,
     copy=True,
+    ftol=1e-8,
+    gtol=1e-8,
+    xtol=1e-8,
 )
 
 # optimizer returns a list of optimized things when multiple things are passed
