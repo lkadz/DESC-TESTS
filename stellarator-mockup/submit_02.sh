@@ -22,4 +22,4 @@ export MPLBACKEND=Agg
 
 python 02_coil_optimization.py
 
-sleep 30 && seff $SLURM_JOB_ID
+sleep 30 && sacct -j $SLURM_JOB_ID --format=JobID,Elapsed,CPUTime,MaxRSS,ReqMem,State
