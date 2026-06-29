@@ -46,7 +46,7 @@ coilset = coilset.to_FourierXYZ(N=8)
 print(f"Coilset: {len(coilset.coils)} coils (including stell-sym images)")
 
 # Rough length of an initial circular coil — used as a soft upper bound
-mean_len = float(np.mean([c.length for c in coilset.coils]))
+mean_len = float(np.mean([c.compute("length")["length"] for c in coilset.coils]))
 print(f"Initial mean coil length: {mean_len:.2f} m")
 
 # ---------------------------------------------------------------------------
