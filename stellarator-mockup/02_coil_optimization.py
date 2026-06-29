@@ -14,6 +14,9 @@ warnings.filterwarnings("ignore", category=FutureWarning, message=".*pynvml.*")
 os.environ.setdefault("JAX_ENABLE_X64", "True")
 os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
+from desc import set_device
+set_device("gpu")
+
 import numpy as np
 
 from desc.coils import initialize_modular_coils
