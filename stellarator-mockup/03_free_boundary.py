@@ -1,9 +1,9 @@
 """Stage 3: free-boundary equilibrium using the optimised coil set.
 
 Loads eq_fixed.h5 and coilset.h5.  Increases spectral resolution, then
-minimises VacuumBoundaryError (B·n on the LCFS) while ForceBalance, iota,
-pressure, and total flux are held as constraints — the plasma boundary is
-free to deform.
+minimises BoundaryError (B·n + pressure balance + virtual casing) while
+ForceBalance, iota, pressure, and total flux are held as constraints —
+the plasma boundary is free to deform.
 Output: eq_free.h5
 """
 
@@ -19,12 +19,12 @@ os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 from desc.coils import CoilSet
 from desc.equilibrium import Equilibrium
 from desc.objectives import (
+    BoundaryError,
     FixIota,
     FixPressure,
     FixPsi,
     ForceBalance,
     ObjectiveFunction,
-    VacuumBoundaryError,
 )
 from desc.optimize import Optimizer
 
@@ -51,7 +51,7 @@ print(f"Resolution after increase: L={eq.L}, M={eq.M}, N={eq.N}")
 # We minimise B·n on that surface while the interior stays in equilibrium.
 # ---------------------------------------------------------------------------
 objective = ObjectiveFunction(
-    VacuumBoundaryError(eq=eq, field=coilset, field_fixed=True)
+    BoundaryError(eq=eq, field=coilset, field_fixed=True)
 )
 
 constraints = (
