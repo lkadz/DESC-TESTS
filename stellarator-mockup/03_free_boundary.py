@@ -1,9 +1,8 @@
 """Stage 3: free-boundary equilibrium using the optimised coil set.
 
-Loads eq_fixed.h5 and coilset.h5.  Increases spectral resolution, then
-minimises VacuumBoundaryError (B·n on the LCFS) while ForceBalance, iota,
-pressure, and total flux are held as constraints — the plasma boundary is
-free to deform.  VacuumBoundaryError is a valid approximation at low β.
+Loads eq_fixed.h5 and coilset.h5.  Two-step solve:
+  1. Warm-start with VacuumBoundaryError (cheap, brings B·n close to zero)
+  2. Refine with BoundaryError (full virtual casing, correct for finite beta)
 Output: eq_free.h5
 """
 
@@ -19,6 +18,7 @@ os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 from desc.coils import CoilSet
 from desc.equilibrium import Equilibrium
 from desc.objectives import (
+    BoundaryError,
     FixIota,
     FixPressure,
     FixPsi,
@@ -45,15 +45,6 @@ eq = eq.copy()
 eq.change_resolution(L=10, M=10, N=8, L_grid=20, M_grid=20, N_grid=16)
 print(f"Resolution after increase: L={eq.L}, M={eq.M}, N={eq.N}")
 
-# ---------------------------------------------------------------------------
-# Free-boundary optimisation
-# The plasma boundary (R_lmn, Z_lmn) is the free variable.
-# We minimise B·n on that surface while the interior stays in equilibrium.
-# ---------------------------------------------------------------------------
-objective = ObjectiveFunction(
-    VacuumBoundaryError(eq=eq, field=coilset, field_fixed=True)
-)
-
 constraints = (
     ForceBalance(eq=eq),
     FixPressure(eq=eq),
@@ -62,10 +53,44 @@ constraints = (
 )
 
 optimizer = Optimizer("proximal-lsq-exact")
-eq_free, result = optimizer.optimize(
+
+# ---------------------------------------------------------------------------
+# Step 1 — warm start with VacuumBoundaryError (fast, no virtual casing)
+# Brings the boundary close to zero B·n so step 2 starts from a good point.
+# ---------------------------------------------------------------------------
+print("\n=== Step 1: VacuumBoundaryError warm start ===")
+obj_vacuum = ObjectiveFunction(
+    VacuumBoundaryError(eq=eq, field=coilset, field_fixed=True)
+)
+
+eq_warm, _ = optimizer.optimize(
     things=eq,
-    objective=objective,
+    objective=obj_vacuum,
     constraints=constraints,
+    verbose=3,
+    copy=True,
+)
+
+# ---------------------------------------------------------------------------
+# Step 2 — refine with BoundaryError (full virtual casing, finite-beta correct)
+# Starts from the warm-started boundary so convergence is fast.
+# ---------------------------------------------------------------------------
+print("\n=== Step 2: BoundaryError refinement (finite-beta) ===")
+obj_full = ObjectiveFunction(
+    BoundaryError(eq=eq_warm, field=coilset, field_fixed=True)
+)
+
+constraints_full = (
+    ForceBalance(eq=eq_warm),
+    FixPressure(eq=eq_warm),
+    FixIota(eq=eq_warm),
+    FixPsi(eq=eq_warm),
+)
+
+eq_free, _ = optimizer.optimize(
+    things=eq_warm,
+    objective=obj_full,
+    constraints=constraints_full,
     verbose=3,
     copy=True,
 )
