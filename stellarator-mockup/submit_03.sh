@@ -2,8 +2,8 @@
 #SBATCH --job-name=desc-mockup-03
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --mem=16G
-#SBATCH --time=00:30:00
+#SBATCH --mem=10G
+#SBATCH --time=00:10:00
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=nomig
 #SBATCH --output=logs/03_free_boundary.out
