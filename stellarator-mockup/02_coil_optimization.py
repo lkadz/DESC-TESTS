@@ -55,7 +55,7 @@ print(f"Initial mean coil length: {mean_len:.2f} m")
 objective = ObjectiveFunction(
     (
         QuadraticFlux(eq=eq, field=coilset, vacuum=True),
-        CoilLength(coilset, bounds=(0, 1.5 * mean_len)),
+        CoilLength(coilset, bounds=(0, 3.0 * mean_len)),
         CoilCurvature(coilset, bounds=(0, 5.0)),
     )
 )
