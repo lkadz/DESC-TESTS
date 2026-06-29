@@ -2,7 +2,7 @@
 #SBATCH --job-name=desc-mockup-03
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --mem=16G
+#SBATCH --mem=4G
 #SBATCH --time=00:59:00
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=nomig
