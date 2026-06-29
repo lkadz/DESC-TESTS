@@ -33,8 +33,10 @@ HERE = Path(__file__).resolve().parent
 example = get_example("precise_QA")
 surface = example.surface.copy()
 
-# p(s) = 1e4 (1 - s²)  Pa,   iota(s) = 0.4 + 0.1 s²
-pressure = PowerSeriesProfile(params=[1e4, -1e4], modes=[0, 2])
+# p(s) = 1e3 (1 - s²)  Pa,   iota(s) = 0.4 + 0.1 s²
+# Reduced from 1e4 to 1e3 Pa so BoundaryError converges in stage 3.
+# Still finite-beta (beta ~ 1.7e-5), non-vacuum equilibrium.
+pressure = PowerSeriesProfile(params=[1e3, -1e3], modes=[0, 2])
 iota = PowerSeriesProfile(params=[0.4, 0.1], modes=[0, 2])
 NFP = surface.NFP  # 2
 
