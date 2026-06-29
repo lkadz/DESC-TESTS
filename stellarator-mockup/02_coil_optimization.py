@@ -38,11 +38,11 @@ print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
 # ---------------------------------------------------------------------------
 # Initialise modular coils (4 unique coils for the half-period with stell sym)
 # ---------------------------------------------------------------------------
-NUM_COILS = 4   # unique coils (stellarator symmetry fills the rest)
+NUM_COILS = 6   # unique coils (stellarator symmetry fills the rest)
 R_OVER_A = 3.0  # coil-to-plasma aspect ratio (coils sit at ~3× the minor radius)
 
 coilset = initialize_modular_coils(eq, num_coils=NUM_COILS, r_over_a=R_OVER_A)
-coilset = coilset.to_FourierXYZ(N=8)
+coilset = coilset.to_FourierXYZ(N=12)
 print(f"Coilset: {len(coilset.coils)} coils (including stell-sym images)")
 
 # Rough length of an initial circular coil — used as a soft upper bound

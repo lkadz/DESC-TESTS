@@ -42,7 +42,7 @@ print(f"Loaded coilset: {len(coilset.coils)} coils")
 # Increase resolution for the free-boundary solve
 # ---------------------------------------------------------------------------
 eq = eq.copy()
-eq.change_resolution(L=8, M=8, N=6, L_grid=16, M_grid=16, N_grid=12)
+eq.change_resolution(L=10, M=10, N=8, L_grid=20, M_grid=20, N_grid=16)
 print(f"Resolution after increase: L={eq.L}, M={eq.M}, N={eq.N}")
 
 # ---------------------------------------------------------------------------
