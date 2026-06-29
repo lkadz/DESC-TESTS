@@ -73,3 +73,7 @@ eq_free, result = optimizer.optimize(
 out = HERE / "eq_free.h5"
 eq_free.save(str(out))
 print(f"Saved → {out}")
+
+import resource
+peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2
+print(f"Peak memory: {peak_gb:.2f} GB")

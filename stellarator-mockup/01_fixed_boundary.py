@@ -57,3 +57,7 @@ eq_solved = eqs[-1]
 out = HERE / "eq_fixed.h5"
 eq_solved.save(str(out))
 print(f"Saved → {out}")
+
+import resource
+peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2
+print(f"Peak memory: {peak_gb:.2f} GB")

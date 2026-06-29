@@ -79,3 +79,7 @@ coilset_opt = coilset_opt[0] if isinstance(coilset_opt, list) else coilset_opt
 out = HERE / "coilset.h5"
 coilset_opt.save(str(out))
 print(f"Saved → {out}")
+
+import resource
+peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2
+print(f"Peak memory: {peak_gb:.2f} GB")

@@ -22,4 +22,4 @@ export MPLBACKEND=Agg
 
 python 03_free_boundary.py
 
-sleep 30 && sacct -j $SLURM_JOB_ID --format=JobID,Elapsed,CPUTime,MaxRSS,ReqMem,State
+sacct -j $SLURM_JOB_ID --format=JobID,Elapsed,MaxRSS,ReqMem,State
