@@ -1,7 +1,7 @@
 """Stage 3: free-boundary equilibrium using the optimised coil set.
 
-Loads eq_fixed.h5 and coilset.h5. Minimises BoundaryError (full virtual
-casing, correct for finite beta) with tight tolerances.
+Loads eq_fixed.h5 and coilset.h5. Minimises VacuumBoundaryError (B·n on
+the LCFS). Valid approximation for this low-beta plasma (beta ~ 1.7e-4).
 Output: eq_free.h5
 """
 
@@ -20,12 +20,12 @@ set_device("gpu")
 from desc.coils import CoilSet
 from desc.equilibrium import Equilibrium
 from desc.objectives import (
-    BoundaryError,
     FixIota,
     FixPressure,
     FixPsi,
     ForceBalance,
     ObjectiveFunction,
+    VacuumBoundaryError,
 )
 from desc.optimize import Optimizer
 
@@ -47,19 +47,12 @@ eq.change_resolution(L=8, M=8, N=6, L_grid=16, M_grid=16, N_grid=12)
 print(f"Resolution: L={eq.L}, M={eq.M}, N={eq.N}")
 
 # ---------------------------------------------------------------------------
-# Free-boundary optimisation with BoundaryError (finite-beta correct)
-# Chunking keeps peak memory tractable on the A100.
-# Tight tolerances prevent premature termination (default ftol=1e-2 stops
-# after 1 step for this problem).
+# Free-boundary optimisation
+# VacuumBoundaryError is valid here: beta ~ 1.7e-4, plasma currents negligible.
+# Tight tolerances prevent the default ftol=1e-2 from stopping too early.
 # ---------------------------------------------------------------------------
 objective = ObjectiveFunction(
-    BoundaryError(
-        eq=eq,
-        field=coilset,
-        field_fixed=True,
-        bs_chunk_size=512,
-        B_plasma_chunk_size=64,
-    )
+    VacuumBoundaryError(eq=eq, field=coilset, field_fixed=True)
 )
 
 constraints = (
