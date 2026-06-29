@@ -21,3 +21,5 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export MPLBACKEND=Agg
 
 python 03_free_boundary.py
+
+jobstats $SLURM_JOB_ID
