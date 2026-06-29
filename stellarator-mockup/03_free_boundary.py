@@ -1,8 +1,7 @@
 """Stage 3: free-boundary equilibrium using the optimised coil set.
 
-Loads eq_fixed.h5 and coilset.h5.  Two-step solve:
-  1. Warm-start with VacuumBoundaryError (cheap, brings B·n close to zero)
-  2. Refine with BoundaryError (full virtual casing, correct for finite beta)
+Loads eq_fixed.h5 and coilset.h5. Minimises BoundaryError (full virtual
+casing, correct for finite beta) with tight tolerances.
 Output: eq_free.h5
 """
 
@@ -27,7 +26,6 @@ from desc.objectives import (
     FixPsi,
     ForceBalance,
     ObjectiveFunction,
-    VacuumBoundaryError,
 )
 from desc.optimize import Optimizer
 
@@ -42,11 +40,27 @@ print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
 print(f"Loaded coilset: {len(coilset.coils)} coils")
 
 # ---------------------------------------------------------------------------
-# Increase resolution for the free-boundary solve
+# Resolution for the free-boundary solve
 # ---------------------------------------------------------------------------
 eq = eq.copy()
 eq.change_resolution(L=8, M=8, N=6, L_grid=16, M_grid=16, N_grid=12)
-print(f"Resolution after increase: L={eq.L}, M={eq.M}, N={eq.N}")
+print(f"Resolution: L={eq.L}, M={eq.M}, N={eq.N}")
+
+# ---------------------------------------------------------------------------
+# Free-boundary optimisation with BoundaryError (finite-beta correct)
+# Chunking keeps peak memory tractable on the A100.
+# Tight tolerances prevent premature termination (default ftol=1e-2 stops
+# after 1 step for this problem).
+# ---------------------------------------------------------------------------
+objective = ObjectiveFunction(
+    BoundaryError(
+        eq=eq,
+        field=coilset,
+        field_fixed=True,
+        bs_chunk_size=512,
+        B_plasma_chunk_size=64,
+    )
+)
 
 constraints = (
     ForceBalance(eq=eq),
@@ -56,53 +70,15 @@ constraints = (
 )
 
 optimizer = Optimizer("proximal-lsq-exact")
-
-# ---------------------------------------------------------------------------
-# Step 1 — warm start with VacuumBoundaryError (fast, no virtual casing)
-# Brings the boundary close to zero B·n so step 2 starts from a good point.
-# ---------------------------------------------------------------------------
-print("\n=== Step 1: VacuumBoundaryError warm start ===")
-obj_vacuum = ObjectiveFunction(
-    VacuumBoundaryError(eq=eq, field=coilset, field_fixed=True)
-)
-
-eq_warm, _ = optimizer.optimize(
+eq_free, _ = optimizer.optimize(
     things=eq,
-    objective=obj_vacuum,
+    objective=objective,
     constraints=constraints,
     verbose=3,
     copy=True,
-)
-eq_warm = eq_warm[0] if isinstance(eq_warm, list) else eq_warm
-
-# ---------------------------------------------------------------------------
-# Step 2 — refine with BoundaryError (full virtual casing, finite-beta correct)
-# Starts from the warm-started boundary so convergence is fast.
-# ---------------------------------------------------------------------------
-print("\n=== Step 2: BoundaryError refinement (finite-beta) ===")
-obj_full = ObjectiveFunction(
-    BoundaryError(
-        eq=eq_warm,
-        field=coilset,
-        field_fixed=True,
-        bs_chunk_size=512,
-        B_plasma_chunk_size=64,
-    )
-)
-
-constraints_full = (
-    ForceBalance(eq=eq_warm),
-    FixPressure(eq=eq_warm),
-    FixIota(eq=eq_warm),
-    FixPsi(eq=eq_warm),
-)
-
-eq_free, _ = optimizer.optimize(
-    things=eq_warm,
-    objective=obj_full,
-    constraints=constraints_full,
-    verbose=3,
-    copy=True,
+    ftol=1e-8,
+    gtol=1e-8,
+    xtol=1e-8,
 )
 eq_free = eq_free[0] if isinstance(eq_free, list) else eq_free
 
