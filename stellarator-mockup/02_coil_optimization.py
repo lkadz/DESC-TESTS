@@ -41,7 +41,7 @@ print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
 # ---------------------------------------------------------------------------
 # Initialise modular coils (4 unique coils for the half-period with stell sym)
 # ---------------------------------------------------------------------------
-NUM_COILS = 10  # unique coils (stellarator symmetry fills the rest)
+NUM_COILS = 6   # unique coils (stellarator symmetry fills the rest)
 R_OVER_A = 2.0  # coil-to-plasma aspect ratio (coils sit at ~2× the minor radius)
 
 coilset = initialize_modular_coils(eq, num_coils=NUM_COILS, r_over_a=R_OVER_A)
