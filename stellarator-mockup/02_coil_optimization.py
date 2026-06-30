@@ -54,7 +54,7 @@ if ESCALATE:
     NUM_COILS, R_OVER_A = 8, 1.5
 else:
     NUM_COILS, R_OVER_A = 6, 2.0
-COIL_N = 12  # toroidal Fourier resolution per coil (rung 4: try 16)
+COIL_N = 16  # toroidal Fourier resolution per coil (finer shaping)
 
 coilset = initialize_modular_coils(eq, num_coils=NUM_COILS, r_over_a=R_OVER_A)
 coilset = coilset.to_FourierXYZ(N=COIL_N)
@@ -71,7 +71,9 @@ print(f"Minor radius: {minor_radius:.3f} m, initial mean coil length: {mean_len:
 flux_terms = [
     QuadraticFlux(eq=eq, field=coilset, vacuum=False),
     CoilLength(coilset, bounds=(0, 3.0 * mean_len)),
-    CoilCurvature(coilset, bounds=(0, 5.0)),
+    # Curvature bound relaxed 5 -> 12: the closer/smaller coils were pinned at
+    # the old limit, fighting the bound instead of matching the field.
+    CoilCurvature(coilset, bounds=(0, 12.0)),
 ]
 if ESCALATE:
     # Coil-coil collision guard: keep the 8 crowded coils ~0.3 minor radii

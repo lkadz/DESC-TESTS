@@ -91,7 +91,7 @@ objective = ObjectiveFunction((
         B_plasma_chunk_size=64,
     ),
     CoilLength(coilset, bounds=(0, 3.0 * mean_len)),
-    CoilCurvature(coilset, bounds=(0, 5.0)),
+    CoilCurvature(coilset, bounds=(0, 12.0)),  # match stage 2's relaxed bound
     # Collision/clearance guards: conservative (~0.2 minor radii) so they're
     # inactive for the rung-1 geometry but stop the co-opt from pushing coils
     # into each other or into the plasma as it reshapes them.
