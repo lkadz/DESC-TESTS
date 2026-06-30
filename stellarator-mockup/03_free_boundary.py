@@ -46,12 +46,23 @@ from desc.optimize import Optimizer
 HERE = Path(__file__).resolve().parent
 
 # ---------------------------------------------------------------------------
-# Load
+# Load — warm-restart: if eq_free.h5 / coilset_free.h5 already exist from a
+# previous run, start from them so repeated submissions continue from wherever
+# the optimizer stopped last time.
 # ---------------------------------------------------------------------------
-eq = Equilibrium.load(str(HERE / "eq_fixed.h5"))
-coilset = CoilSet.load(str(HERE / "coilset.h5"))
-print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
-print(f"Loaded coilset: {len(coilset.coils)} coils")
+eq_free_path = HERE / "eq_free.h5"
+coilset_free_path = HERE / "coilset_free.h5"
+
+if eq_free_path.exists() and coilset_free_path.exists():
+    eq = Equilibrium.load(str(eq_free_path))
+    coilset = CoilSet.load(str(coilset_free_path))
+    print("Warm restart: loaded eq_free.h5 + coilset_free.h5")
+else:
+    eq = Equilibrium.load(str(HERE / "eq_fixed.h5"))
+    coilset = CoilSet.load(str(HERE / "coilset.h5"))
+    print("Cold start: loaded eq_fixed.h5 + coilset.h5")
+print(f"Equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
+print(f"Coilset: {len(coilset.coils)} coils")
 
 eq = eq.copy()
 eq.change_resolution(L=8, M=8, N=6, L_grid=16, M_grid=16, N_grid=12)
