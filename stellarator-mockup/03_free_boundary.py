@@ -34,10 +34,10 @@ from desc.objectives import (
     BoundaryError,
     CoilCurvature,
     CoilLength,
-    FixCoilCurrent,
     FixIota,
     FixPressure,
     FixPsi,
+    FixSumCoilCurrent,
     ForceBalance,
     ObjectiveFunction,
 )
@@ -75,7 +75,9 @@ mean_len = float(np.mean([c.compute("length")["length"] for c in coilset.coils])
 print(f"Mean coil length: {mean_len:.2f} m")
 
 # ---------------------------------------------------------------------------
-# Co-optimisation: plasma boundary + coil shapes, coil currents fixed
+# Co-optimisation: plasma boundary + coil shapes + coil current distribution.
+# Only the NET coil current is fixed (FixSumCoilCurrent) — individual currents
+# redistribute freely, which is the dominant lever for driving B·n toward zero.
 # ---------------------------------------------------------------------------
 objective = ObjectiveFunction((
     BoundaryError(
@@ -94,7 +96,7 @@ constraints = (
     FixPressure(eq=eq),
     FixIota(eq=eq),
     FixPsi(eq=eq),
-    FixCoilCurrent(coilset),    # only shapes vary, not currents
+    FixSumCoilCurrent(coilset),   # net current fixed; distribution + shapes vary
 )
 
 optimizer = Optimizer("proximal-lsq-exact")

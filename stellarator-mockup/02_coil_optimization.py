@@ -24,7 +24,7 @@ from desc.equilibrium import Equilibrium
 from desc.objectives import (
     CoilCurvature,
     CoilLength,
-    FixCoilCurrent,
+    FixSumCoilCurrent,
     ObjectiveFunction,
     QuadraticFlux,
 )
@@ -63,9 +63,13 @@ objective = ObjectiveFunction(
     )
 )
 
-# Fix all coil currents — optimizer only adjusts coil shapes, not currents.
-# This avoids the trivial zero-current solution and works with any CoilSet tree structure.
-constraints = (FixCoilCurrent(coilset),)
+# Fix only the SUM of coil currents (the net poloidal linking current), so the
+# toroidal field strength is preserved and there's no trivial zero-current
+# solution — but the optimizer is free to redistribute current between coils.
+# The current distribution is the dominant lever for reducing B·n, so unlocking
+# it (vs FixCoilCurrent which pins every coil to the same current) is what lets
+# the field error drop well below the ~16% floor of the fixed-current solve.
+constraints = (FixSumCoilCurrent(coilset),)
 
 optimizer = Optimizer("lsq-exact")
 coilset_opt, result = optimizer.optimize(
