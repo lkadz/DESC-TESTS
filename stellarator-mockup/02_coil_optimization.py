@@ -24,8 +24,10 @@ from desc.equilibrium import Equilibrium
 from desc.objectives import (
     CoilCurvature,
     CoilLength,
+    CoilSetMinDistance,
     FixSumCoilCurrent,
     ObjectiveFunction,
+    PlasmaCoilSetMinDistance,
     QuadraticFlux,
 )
 from desc.optimize import Optimizer
@@ -39,29 +41,47 @@ eq = Equilibrium.load(str(HERE / "eq_fixed.h5"))
 print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
 
 # ---------------------------------------------------------------------------
-# Initialise modular coils (4 unique coils for the half-period with stell sym)
+# Escalation rung. Flip ESCALATE to True if the rung-1 result (free currents
+# alone) does not bring max B·n under 1%.
+#   rung 1   (ESCALATE=False): 6 coils, r/a=2.0 — best fixed-geometry result
+#   rungs 2-3 (ESCALATE=True): 8 coils, r/a=1.5 + collision/clearance guards.
+#     Closer coils have far more authority over B·n (field falls off fast with
+#     distance); more coils add shaping DOF; the min-distance objectives stop
+#     them colliding with each other or touching the plasma.
 # ---------------------------------------------------------------------------
-NUM_COILS = 6   # unique coils (stellarator symmetry fills the rest)
-R_OVER_A = 2.0  # coil-to-plasma aspect ratio (coils sit at ~2× the minor radius)
+ESCALATE = False
+
+if ESCALATE:
+    NUM_COILS, R_OVER_A = 8, 1.5
+else:
+    NUM_COILS, R_OVER_A = 6, 2.0
+COIL_N = 12  # toroidal Fourier resolution per coil (rung 4: try 16)
 
 coilset = initialize_modular_coils(eq, num_coils=NUM_COILS, r_over_a=R_OVER_A)
-coilset = coilset.to_FourierXYZ(N=12)
+coilset = coilset.to_FourierXYZ(N=COIL_N)
 print(f"Coilset: {len(coilset.coils)} coils (including stell-sym images)")
 
-# Rough length of an initial circular coil — used as a soft upper bound
+# Length scale for the regularisation bounds
+minor_radius = float(eq.compute("a")["a"])
 mean_len = float(np.mean([c.compute("length")["length"] for c in coilset.coils]))
-print(f"Initial mean coil length: {mean_len:.2f} m")
+print(f"Minor radius: {minor_radius:.3f} m, initial mean coil length: {mean_len:.2f} m")
 
 # ---------------------------------------------------------------------------
 # Optimisation
 # ---------------------------------------------------------------------------
-objective = ObjectiveFunction(
-    (
-        QuadraticFlux(eq=eq, field=coilset, vacuum=False),
-        CoilLength(coilset, bounds=(0, 3.0 * mean_len)),
-        CoilCurvature(coilset, bounds=(0, 5.0)),
-    )
-)
+flux_terms = [
+    QuadraticFlux(eq=eq, field=coilset, vacuum=False),
+    CoilLength(coilset, bounds=(0, 3.0 * mean_len)),
+    CoilCurvature(coilset, bounds=(0, 5.0)),
+]
+if ESCALATE:
+    # Keep ~0.3 minor radii of clearance so the closer/denser coils can't
+    # collide with each other or touch the plasma as they reshape.
+    flux_terms += [
+        CoilSetMinDistance(coilset, bounds=(0.3 * minor_radius, np.inf)),
+        PlasmaCoilSetMinDistance(eq, coilset, bounds=(0.3 * minor_radius, np.inf)),
+    ]
+objective = ObjectiveFunction(tuple(flux_terms))
 
 # Fix only the SUM of coil currents (the net poloidal linking current), so the
 # toroidal field strength is preserved and there's no trivial zero-current

@@ -34,12 +34,14 @@ from desc.objectives import (
     BoundaryError,
     CoilCurvature,
     CoilLength,
+    CoilSetMinDistance,
     FixIota,
     FixPressure,
     FixPsi,
     FixSumCoilCurrent,
     ForceBalance,
     ObjectiveFunction,
+    PlasmaCoilSetMinDistance,
 )
 from desc.optimize import Optimizer
 
@@ -71,8 +73,9 @@ print(f"Resolution: L={eq.L}, M={eq.M}, N={eq.N}")
 # ---------------------------------------------------------------------------
 # Coil regularisation bounds (same as stage 2)
 # ---------------------------------------------------------------------------
+minor_radius = float(eq.compute("a")["a"])
 mean_len = float(np.mean([c.compute("length")["length"] for c in coilset.coils]))
-print(f"Mean coil length: {mean_len:.2f} m")
+print(f"Minor radius: {minor_radius:.3f} m, mean coil length: {mean_len:.2f} m")
 
 # ---------------------------------------------------------------------------
 # Co-optimisation: plasma boundary + coil shapes + coil current distribution.
@@ -89,6 +92,11 @@ objective = ObjectiveFunction((
     ),
     CoilLength(coilset, bounds=(0, 3.0 * mean_len)),
     CoilCurvature(coilset, bounds=(0, 5.0)),
+    # Collision/clearance guards: conservative (~0.2 minor radii) so they're
+    # inactive for the rung-1 geometry but stop the co-opt from pushing coils
+    # into each other or into the plasma as it reshapes them.
+    CoilSetMinDistance(coilset, bounds=(0.2 * minor_radius, np.inf)),
+    PlasmaCoilSetMinDistance(eq, coilset, bounds=(0.2 * minor_radius, np.inf)),
 ))
 
 constraints = (
