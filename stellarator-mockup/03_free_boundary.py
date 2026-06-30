@@ -1,10 +1,17 @@
-"""Stage 3: free-boundary equilibrium using the optimised coil set.
+"""Stage 3: free-boundary equilibrium — co-optimise plasma boundary + coil shapes.
 
-Loads eq_fixed.h5 and coilset.h5. Minimises BoundaryError (full virtual
-casing, correct for finite beta). Plasma pressure reduced to 1e3 Pa
-(beta ~ 1.7e-5) so the boundary deformation stays compatible with the
-ForceBalance constraint throughout optimisation.
-Output: eq_free.h5
+Loads eq_fixed.h5 and coilset.h5 from the previous stages.
+
+Strategy: pass things=[eq, coilset] so the optimizer simultaneously adjusts
+the plasma boundary Fourier modes AND the coil XYZ Fourier modes. BoundaryError
+(full virtual casing, correct for finite beta) is the objective. ForceBalance
+is a hard constraint on the equilibrium. CoilLength + CoilCurvature keep the
+coil shapes physical during the co-optimisation.
+
+This is how real stellarator free-boundary problems are solved: stage 2 coils
+are the initial guess, and stage 3 finds the self-consistent configuration.
+
+Output: eq_free.h5, coilset_free.h5
 """
 
 import os
@@ -19,10 +26,15 @@ os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 from desc import set_device
 set_device("gpu")
 
+import numpy as np
+
 from desc.coils import CoilSet
 from desc.equilibrium import Equilibrium
 from desc.objectives import (
     BoundaryError,
+    CoilCurvature,
+    CoilLength,
+    FixCoilCurrent,
     FixIota,
     FixPressure,
     FixPsi,
@@ -41,37 +53,42 @@ coilset = CoilSet.load(str(HERE / "coilset.h5"))
 print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
 print(f"Loaded coilset: {len(coilset.coils)} coils")
 
-# ---------------------------------------------------------------------------
-# Resolution for the free-boundary solve
-# ---------------------------------------------------------------------------
 eq = eq.copy()
 eq.change_resolution(L=8, M=8, N=6, L_grid=16, M_grid=16, N_grid=12)
 print(f"Resolution: L={eq.L}, M={eq.M}, N={eq.N}")
 
 # ---------------------------------------------------------------------------
-# Free-boundary optimisation with BoundaryError (finite-beta correct).
-# Chunking keeps peak memory tractable; tight tolerances prevent premature stop.
+# Coil regularisation bounds (same as stage 2)
 # ---------------------------------------------------------------------------
-objective = ObjectiveFunction(
+mean_len = float(np.mean([c.compute("length")["length"] for c in coilset.coils]))
+print(f"Mean coil length: {mean_len:.2f} m")
+
+# ---------------------------------------------------------------------------
+# Co-optimisation: plasma boundary + coil shapes, coil currents fixed
+# ---------------------------------------------------------------------------
+objective = ObjectiveFunction((
     BoundaryError(
         eq=eq,
         field=coilset,
-        field_fixed=True,
+        field_fixed=False,      # coilset is now a free variable
         bs_chunk_size=512,
         B_plasma_chunk_size=64,
-    )
-)
+    ),
+    CoilLength(coilset, bounds=(0, 3.0 * mean_len)),
+    CoilCurvature(coilset, bounds=(0, 5.0)),
+))
 
 constraints = (
     ForceBalance(eq=eq),
     FixPressure(eq=eq),
     FixIota(eq=eq),
     FixPsi(eq=eq),
+    FixCoilCurrent(coilset),    # only shapes vary, not currents
 )
 
 optimizer = Optimizer("proximal-lsq-exact")
-eq_free, _ = optimizer.optimize(
-    things=eq,
+result, _ = optimizer.optimize(
+    things=[eq, coilset],
     objective=objective,
     constraints=constraints,
     verbose=3,
@@ -80,11 +97,13 @@ eq_free, _ = optimizer.optimize(
     gtol=1e-8,
     xtol=1e-8,
 )
-eq_free = eq_free[0] if isinstance(eq_free, list) else eq_free
+# copy=True with multiple things returns a list of lists: [[eq_opt], [coilset_opt]]
+eq_free = result[0][0] if isinstance(result[0], list) else result[0]
+coilset_free = result[1][0] if isinstance(result[1], list) else result[1]
 
-out = HERE / "eq_free.h5"
-eq_free.save(str(out))
-print(f"Saved → {out}")
+eq_free.save(str(HERE / "eq_free.h5"))
+coilset_free.save(str(HERE / "coilset_free.h5"))
+print(f"Saved → eq_free.h5, coilset_free.h5")
 
 import resource
 peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2
