@@ -49,7 +49,7 @@ print(f"Loaded equilibrium: NFP={eq.NFP}, L={eq.L}, M={eq.M}, N={eq.N}")
 #     distance); more coils add shaping DOF; the min-distance objectives stop
 #     them colliding with each other or touching the plasma.
 # ---------------------------------------------------------------------------
-ESCALATE = False
+ESCALATE = True
 
 if ESCALATE:
     NUM_COILS, R_OVER_A = 8, 1.5
