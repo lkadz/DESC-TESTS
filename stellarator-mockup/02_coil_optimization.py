@@ -27,7 +27,6 @@ from desc.objectives import (
     CoilSetMinDistance,
     FixSumCoilCurrent,
     ObjectiveFunction,
-    PlasmaCoilSetMinDistance,
     QuadraticFlux,
 )
 from desc.optimize import Optimizer
@@ -75,11 +74,13 @@ flux_terms = [
     CoilCurvature(coilset, bounds=(0, 5.0)),
 ]
 if ESCALATE:
-    # Keep ~0.3 minor radii of clearance so the closer/denser coils can't
-    # collide with each other or touch the plasma as they reshape.
+    # Coil-coil collision guard: keep the 8 crowded coils ~0.3 minor radii
+    # apart. Plasma-coil clearance is NOT an explicit objective here — it would
+    # pull the (fixed) equilibrium into the optimizer's `things`, and QuadraticFlux
+    # already strongly penalises coils approaching the plasma. The explicit
+    # plasma-coil guard lives in stage 3, where the equilibrium IS a free variable.
     flux_terms += [
         CoilSetMinDistance(coilset, bounds=(0.3 * minor_radius, np.inf)),
-        PlasmaCoilSetMinDistance(eq, coilset, bounds=(0.3 * minor_radius, np.inf)),
     ]
 objective = ObjectiveFunction(tuple(flux_terms))
 
